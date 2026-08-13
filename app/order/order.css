@@ -1,3 +1,49 @@
+.brand-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+
+.brand-bolt {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: #d71920;
+  font-size: 25px;
+  box-shadow: 0 8px 24px rgba(215, 25, 32, 0.3);
+}
+
+.brand-mark div {
+  display: grid;
+  line-height: 1;
+}
+
+.brand-mark strong {
+  font-size: 19px;
+  letter-spacing: 2px;
+}
+
+.brand-mark small {
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: #c7cbd1;
+  margin-top: 5px;
+}
+
+/* Everything that was already here stays below */
+
+.order-page {
+  max-width: 1400px;
+}
+
 .order-page {
   max-width: 1400px;
 }
