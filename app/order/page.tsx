@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "../../lib/supabase/client";
 import "./order.css";
 
 type Drink = {
