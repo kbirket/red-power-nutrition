@@ -273,33 +273,24 @@ export default function OrderPage() {
   return (
     <main className="order-page">
 
-      <header className="order-header">
+    <header className="order-header">
+  <div className="brand-area">
+    <img
+      src="/red-power-logo.png"
+      alt="Red Power Nutrition"
+      className="brand-logo"
+    />
 
-        <div className="header-main">
+    <div className="brand-copy">
+      <h1>ORDER YOUR POWER.</h1>
+      <p>Choose your drink, customize it, and we’ll take it from there.</p>
+    </div>
+  </div>
 
-          <div className="brand-wrap">
-            <img
-              src="/red-power-logo.png"
-              alt="Red Power Nutrition"
-              className="brand-logo"
-            />
-          </div>
-
-          <div className="header-title">
-            <h1>ORDER YOUR POWER.</h1>
-            <p>
-              Choose your drink, customize it, and we’ll take it from there.
-            </p>
-          </div>
-
-          <div className="cart-badge">
-            🛒 {cart.length}{" "}
-            {cart.length === 1 ? "drink" : "drinks"}
-          </div>
-
-        </div>
-
-      </header>
+  <div className="cart-badge">
+    🛒 {cart.length} {cart.length === 1 ? "drink" : "drinks"}
+  </div>
+</header>
 
       <section className="school-banner">
         <strong>🏫 Argonia Fridays</strong>
