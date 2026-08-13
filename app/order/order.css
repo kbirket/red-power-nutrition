@@ -91,7 +91,7 @@
 }
 
 .brand-logo {
-  width: 260px;
+  width: 330px;
   height: auto;
   display: block;
   flex-shrink: 0;
@@ -105,7 +105,7 @@
 
 .brand-copy h1 {
   margin: 0;
-  font-size: clamp(2rem, 3.8vw, 3.6rem);
+  font-size: clamp(1.8rem, 3vw, 3rem);
   font-style: italic;
   font-weight: 900;
   letter-spacing: 0.04em;
