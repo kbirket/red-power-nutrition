@@ -20,7 +20,7 @@
 2. In this folder run `npm install`.
 3. Create a Supabase project.
 4. Run `supabase/schema.sql` in the Supabase SQL editor.
-5. Copy `.env.example` to `.env.local` and add your Supabase URL and anon key.
+5. Add your Supabase environment variables in Vercel or copy `.env.example` to `.env.local` for local development. Never commit `.env.local`.
 6. Run `npm run dev`.
 
 ## Next coding milestones
