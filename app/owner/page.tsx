@@ -3,122 +3,93 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../../lib/supabase/client";
 
+type Tab = "dashboard" | "menu" | "prices" | "addons" | "orders";
 type Category = { id: string; name: string; sort_order: number };
 type MenuItem = { id: string; category_id: string | null; name: string; description: string | null; price: number; is_available: boolean; is_seasonal: boolean };
 type Addon = { id: string; name: string; price: number; is_available: boolean };
 type Order = { id: string; created_at: string; total: number; status: string; fulfillment: string };
 type OrderItem = { item_name: string; unit_price: number; quantity: number; order_id: string };
-type Range = "today" | "7" | "30" | "all";
 
-const money = (value: number) => `$${Number(value || 0).toFixed(2)}`;
-const ranges: { key: Range; label: string }[] = [{ key: "today", label: "Today" }, { key: "7", label: "7 days" }, { key: "30", label: "30 days" }, { key: "all", label: "All time" }];
+const money = (n: number) => `$${Number(n || 0).toFixed(2)}`;
+const photoPricing = [
+  ["TEAS", ["Fun Water - 16oz — $1.00", "Fun Water - 32oz — $2.00", "Level 1 - 20oz — $3.00", "Level 1 - 32oz — $4.00", "Level 2 - 20oz — $6.50", "Level 2 - 32oz — $7.50", "Whipped M1 — $6.50", "Whipped M2 — $10.00", "Liftoff Only 20oz — $5.00", "Liftoff only 32oz — $6.00", "M1 to-go teas — $4.00", "M2 to-go teas — $7.50"]],
+  ["PROTEIN COFFEE", ["Boujee Brew - 32oz — $9.00", "Hot Coffee - 20oz — $5.50", "Iced coffee - 20oz — $5.50", "Iced Coffee - 32oz — $6.50", "Hot Chocolate — $5.00"]],
+  ["NO CAFFEINE", ["Protein Punch 20oz — $4.00", "Protein Punch 32oz — $5.00", "Hydration Tea 20oz — $4.00", "Hydration Tea 32oz — $5.00"]],
+  ["SHAKES", ["Shake only — $8.00", "Kids Shake — $5.00", "Rebuild Shake — $10.00"]],
+  ["COMBOS", ["Level 1-20oz combo — $10.00", "Level 2-20oz combo — $13.00", "Level 1-32oz combo — $11.00", "Level 2-32oz combo — $14.00", "Rebuild L1 combo — $12.00", "Rebuild L2 combo — $15.00", "Rebuild M1 combo — $13.00", "Rebuild M2 combo — $16.00"]],
+  ["ADD IN", ["Beauty Boost — $2.50", "Best Defense — $2.50", "H3O — $3.00", "Immunity — $2.00", "CR7 — $1.50", "Creatine — $1.50", "Niteworks — $4.50", "Probiotic — $1.50"]],
+  ["DESSERTS", ["Protein Bites — $5.00", "Pudding Cups — $5.00"]],
+] as const;
 
 export default function OwnerPage() {
+  const [tab, setTab] = useState<Tab>("dashboard");
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [range, setRange] = useState<Range>("30");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const load = async () => {
-    setLoading(true); setError(null);
+    setLoading(true); setError("");
     const s = createClient();
-    const [categoryResult, itemResult, addonResult, orderResult, orderItemResult] = await Promise.all([
+    const [c, i, a, o, oi] = await Promise.all([
       s.from("menu_categories").select("id,name,sort_order").order("sort_order"),
       s.from("menu_items").select("id,category_id,name,description,price,is_available,is_seasonal").order("name"),
       s.from("addons").select("id,name,price,is_available").order("name"),
       s.from("orders").select("id,created_at,total,status,fulfillment").order("created_at", { ascending: false }),
       s.from("order_items").select("item_name,unit_price,quantity,order_id"),
     ]);
-    const firstError = categoryResult.error || itemResult.error || addonResult.error || orderResult.error || orderItemResult.error;
-    if (firstError) setError(firstError.message);
+    const first = c.error || i.error || a.error || o.error || oi.error;
+    if (first) setError(first.message);
     else {
-      setCategories(categoryResult.data || []);
-      setItems((itemResult.data || []).map((x: any) => ({ ...x, price: Number(x.price) })));
-      setAddons((addonResult.data || []).map((x: any) => ({ ...x, price: Number(x.price) })));
-      setOrders((orderResult.data || []).map((x: any) => ({ ...x, total: Number(x.total) })));
-      setOrderItems((orderItemResult.data || []).map((x: any) => ({ ...x, unit_price: Number(x.unit_price), quantity: Number(x.quantity) })));
+      setCategories(c.data || []);
+      setItems((i.data || []).map((x: any) => ({ ...x, price: Number(x.price) })));
+      setAddons((a.data || []).map((x: any) => ({ ...x, price: Number(x.price) })));
+      setOrders((o.data || []).map((x: any) => ({ ...x, total: Number(x.total) })));
+      setOrderItems((oi.data || []).map((x: any) => ({ ...x, unit_price: Number(x.unit_price), quantity: Number(x.quantity) })));
     }
     setLoading(false);
   };
-
   useEffect(() => { load(); }, []);
 
-  const filteredOrders = useMemo(() => {
-    if (range === "all") return orders;
-    const now = new Date();
-    const start = new Date(now);
-    if (range === "today") start.setHours(0, 0, 0, 0);
-    else start.setDate(start.getDate() - Number(range));
-    return orders.filter((o) => new Date(o.created_at) >= start);
-  }, [orders, range]);
+  const updateItem = (id: string, patch: Partial<MenuItem>) => setItems(xs => xs.map(x => x.id === id ? { ...x, ...patch } : x));
+  const updateAddon = (id: string, patch: Partial<Addon>) => setAddons(xs => xs.map(x => x.id === id ? { ...x, ...patch } : x));
+  const saveItem = async (x: MenuItem) => { setSaving(true); setMessage(""); const { error } = await createClient().from("menu_items").update({ category_id:x.category_id, name:x.name.trim(), description:x.description?.trim() || null, price:Number(x.price), is_available:x.is_available, is_seasonal:x.is_seasonal }).eq("id",x.id); setSaving(false); if(error) setError(error.message); else setMessage(`${x.name} saved.`); };
+  const saveAddon = async (x: Addon) => { setSaving(true); setMessage(""); const { error } = await createClient().from("addons").update({ name:x.name.trim(), price:Number(x.price), is_available:x.is_available }).eq("id",x.id); setSaving(false); if(error) setError(error.message); else setMessage(`${x.name} saved.`); };
+  const addItem = async () => { if(!categories.length) return setError("Add a category first."); setSaving(true); const {data,error}=await createClient().from("menu_items").insert({category_id:categories[0].id,name:"New menu item",description:null,price:0,is_available:true,is_seasonal:false}).select("id,category_id,name,description,price,is_available,is_seasonal").single(); setSaving(false); if(error) setError(error.message); else if(data){setItems(xs=>[...xs,{...data,price:Number(data.price)}]);setTab("menu");setMessage("New item added.");} };
+  const deleteItem = async (x: MenuItem) => { if(!confirm(`Delete ${x.name}?`)) return; const {error}=await createClient().from("menu_items").delete().eq("id",x.id); if(error)setError(error.message); else setItems(xs=>xs.filter(y=>y.id!==x.id)); };
+  const addAddon = async () => { const {data,error}=await createClient().from("addons").insert({name:"New add-in",price:0,is_available:true}).select("id,name,price,is_available").single(); if(error)setError(error.message); else if(data)setAddons(xs=>[...xs,{...data,price:Number(data.price)}]); };
+  const addCategory = async () => { const name=prompt("New category name:"); if(!name?.trim())return; const {data,error}=await createClient().from("menu_categories").insert({name:name.trim(),sort_order:categories.length+1}).select("id,name,sort_order").single(); if(error)setError(error.message); else if(data)setCategories(xs=>[...xs,data]); };
 
-  const filteredIds = useMemo(() => new Set(filteredOrders.map((o) => o.id)), [filteredOrders]);
   const analytics = useMemo(() => {
-    const completed = filteredOrders.filter((o) => o.status === "completed");
-    const revenue = completed.reduce((sum, o) => sum + o.total, 0);
-    const average = completed.length ? revenue / completed.length : 0;
-    const statusCounts = ["new", "making", "ready", "completed", "cancelled"].map((status) => ({ status, count: filteredOrders.filter((o) => o.status === status).length }));
-    const fulfillment = ["pickup", "school_delivery"].map((name) => ({ name, count: filteredOrders.filter((o) => o.fulfillment === name).length }));
-    const salesByDay = new Map<string, number>();
-    completed.forEach((o) => { const day = new Date(o.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }); salesByDay.set(day, (salesByDay.get(day) || 0) + o.total); });
-    const drinks = new Map<string, { quantity: number; revenue: number }>();
-    orderItems.filter((x) => filteredIds.has(x.order_id)).forEach((x) => { const current = drinks.get(x.item_name) || { quantity: 0, revenue: 0 }; current.quantity += x.quantity; current.revenue += x.unit_price * x.quantity; drinks.set(x.item_name, current); });
-    return { revenue, completed: completed.length, average, statusCounts, fulfillment, sales: Array.from(salesByDay, ([label, value]) => ({ label, value })), drinks: Array.from(drinks, ([name, value]) => ({ name, ...value })).sort((a, b) => b.quantity - a.quantity).slice(0, 8) };
-  }, [filteredOrders, orderItems, filteredIds]);
+    const completed=orders.filter(x=>x.status==="completed"); const revenue=completed.reduce((s,x)=>s+x.total,0);
+    const top=new Map<string,number>(); orderItems.forEach(x=>top.set(x.item_name,(top.get(x.item_name)||0)+x.quantity));
+    return { revenue, completed:completed.length, average:completed.length?revenue/completed.length:0, top:[...top.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6), new:orders.filter(x=>x.status==="new").length };
+  },[orders,orderItems]);
+  const grouped = useMemo(() => categories.map(c=>({category:c,items:items.filter(x=>x.category_id===c.id)})).concat(items.filter(x=>!x.category_id).length?[{category:{id:"none",name:"Other",sort_order:999},items:items.filter(x=>!x.category_id)}]:[]),[categories,items]);
+  const tabs: {id:Tab;label:string;icon:string}[] = [{id:"dashboard",label:"Dashboard",icon:"📊"},{id:"menu",label:"Manage Menu",icon:"🍹"},{id:"prices",label:"Prices",icon:"💲"},{id:"addons",label:"Add-Ins",icon:"➕"},{id:"orders",label:"Orders",icon:"📦"}];
 
-  const saveItem = async (item: MenuItem) => {
-    setSaving(true); setMessage(null); setError(null);
-    const { error } = await createClient().from("menu_items").update({ category_id: item.category_id, name: item.name.trim(), description: item.description?.trim() || null, price: Number(item.price), is_available: item.is_available, is_seasonal: item.is_seasonal }).eq("id", item.id);
-    setSaving(false); if (error) return setError(error.message); setMessage(`${item.name || "Drink"} saved.`);
-  };
-  const addItem = async () => {
-    if (!categories.length) return setError("Add a category first."); setSaving(true); setMessage(null); setError(null);
-    const { data, error } = await createClient().from("menu_items").insert({ category_id: categories[0].id, name: "New drink", description: null, price: 0, is_available: true, is_seasonal: false }).select("id,category_id,name,description,price,is_available,is_seasonal").single();
-    setSaving(false); if (error) return setError(error.message); if (data) setItems((current) => [...current, { ...data, price: Number(data.price) }]); setMessage("New drink added. Edit it below and click Save.");
-  };
-  const deleteItem = async (id: string, name: string) => { if (!confirm(`Delete ${name}?`)) return; setSaving(true); const { error } = await createClient().from("menu_items").delete().eq("id", id); setSaving(false); if (error) return setError(error.message); setItems((current) => current.filter((x) => x.id !== id)); setMessage(`${name} deleted.`); };
-  const saveAddon = async (addon: Addon) => { setSaving(true); const { error } = await createClient().from("addons").update({ name: addon.name.trim(), price: Number(addon.price), is_available: addon.is_available }).eq("id", addon.id); setSaving(false); if (error) return setError(error.message); setMessage(`${addon.name || "Boost"} saved.`); };
-  const addAddon = async () => { setSaving(true); const { data, error } = await createClient().from("addons").insert({ name: "New boost", price: 0, is_available: true }).select("id,name,price,is_available").single(); setSaving(false); if (error) return setError(error.message); if (data) setAddons((current) => [...current, { ...data, price: Number(data.price) }]); setMessage("New boost added."); };
-  const deleteAddon = async (id: string, name: string) => { if (!confirm(`Delete ${name}?`)) return; setSaving(true); const { error } = await createClient().from("addons").delete().eq("id", id); setSaving(false); if (error) return setError(error.message); setAddons((current) => current.filter((x) => x.id !== id)); setMessage(`${name} deleted.`); };
-  const addCategory = async () => { const name = prompt("Category name:"); if (!name?.trim()) return; const { data, error } = await createClient().from("menu_categories").insert({ name: name.trim(), sort_order: categories.length + 1 }).select("id,name,sort_order").single(); if (error) return setError(error.message); if (data) setCategories((current) => [...current, data]); setMessage(`${name.trim()} category added.`); };
-  const updateItem = (id: string, patch: Partial<MenuItem>) => setItems((current) => current.map((x) => x.id === id ? { ...x, ...patch } : x));
-  const updateAddon = (id: string, patch: Partial<Addon>) => setAddons((current) => current.map((x) => x.id === id ? { ...x, ...patch } : x));
-  const maxSales = Math.max(...analytics.sales.map((x) => x.value), 1);
-  const maxDrink = Math.max(...analytics.drinks.map((x) => x.quantity), 1);
+  return <main className="owner-shell">
+    <header className="owner-hero"><img src="/red-power-logo.png" alt="Red Power Nutrition"/><div><p>OWNER PORTAL</p><h1>CONTROL YOUR POWER.</h1><span>Manage the menu, prices, add-ins, orders, and sales in one place.</span></div><button onClick={load} disabled={loading}>↻ Refresh</button></header>
+    <nav className="owner-tabs">{tabs.map(t=><button key={t.id} className={tab===t.id?"active":""} onClick={()=>setTab(t.id)}><span>{t.icon}</span>{t.label}</button>)}</nav>
+    <div className="owner-content">{message&&<div className="notice success">✓ {message}</div>}{error&&<div className="notice error">{error}</div>}
 
-  return <main className="page">
-    <div className="owner-header"><div><p className="eyebrow">OWNER DASHBOARD</p><h1>Red Power Control Center</h1><p>Track sales, see what customers are ordering, and manage your menu.</p></div><button onClick={load} disabled={loading}>↻ Refresh data</button></div>
-    <div className="range-tabs">{ranges.map((r) => <button key={r.key} className={range === r.key ? "active" : ""} onClick={() => setRange(r.key)}>{r.label}</button>)}</div>
-    {message && <p className="form-success">{message}</p>}{error && <p className="form-error">{error}</p>}
+      {tab==="dashboard" && <><section className="cards"><article><small>Completed revenue</small><strong>{money(analytics.revenue)}</strong></article><article><small>Completed orders</small><strong>{analytics.completed}</strong></article><article><small>Average order</small><strong>{money(analytics.average)}</strong></article><article><small>New orders</small><strong>{analytics.new}</strong></article></section><section className="panel"><h2>Most ordered</h2>{analytics.top.length?analytics.top.map(([name,q])=><div className="rank" key={name}><span>{name}</span><b>{q} sold</b></div>):<p className="muted">Order analytics will build as orders come in.</p>}</section></>}
 
-    <section className="metrics">
-      <article><span>Revenue</span><strong>{money(analytics.revenue)}</strong><small>Completed orders</small></article>
-      <article><span>Completed</span><strong>{analytics.completed}</strong><small>Orders finished</small></article>
-      <article><span>Average order</span><strong>{money(analytics.average)}</strong><small>Per completed order</small></article>
-      <article><span>Total orders</span><strong>{filteredOrders.length}</strong><small>All statuses</small></article>
-    </section>
+      {tab==="menu" && <><div className="section-head"><div><p className="eyebrow">MENU CONTROL</p><h2>Manage the menu</h2><span>Add drinks, rename them, move them between categories, or turn them on and off.</span></div><div><button onClick={addCategory}>+ Category</button><button className="red" onClick={addItem}>+ Menu item</button></div></div>{loading?<p>Loading menu…</p>:grouped.map(g=><section className="panel" key={g.category.id}><h3>{g.category.name}</h3>{g.items.map(x=><div className="menu-edit" key={x.id}><input value={x.name} onChange={e=>updateItem(x.id,{name:e.target.value})}/><select value={x.category_id||""} onChange={e=>updateItem(x.id,{category_id:e.target.value||null})}><option value="">No category</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><label><input type="checkbox" checked={x.is_available} onChange={e=>updateItem(x.id,{is_available:e.target.checked})}/> Available</label><button onClick={()=>saveItem(x)} disabled={saving}>Save</button><button className="danger" onClick={()=>deleteItem(x)}>Delete</button></div>)}</section>)}</>}
 
-    <section className="analytics-grid">
-      <article className="panel chart-card"><h2>Sales over time</h2><p className="muted">Completed order revenue</p>{analytics.sales.length ? <div className="bar-chart">{analytics.sales.map((x) => <div className="bar-col" key={x.label}><div className="bar" style={{ height: `${Math.max(8, x.value / maxSales * 180)}px` }} title={money(x.value)} /><small>{x.label}</small><b>{money(x.value)}</b></div>)}</div> : <p className="empty">No completed sales in this period yet.</p>}</article>
-      <article className="panel"><h2>Order pipeline</h2>{analytics.statusCounts.map((x) => <div className="stat-row" key={x.status}><span>{x.status}</span><b>{x.count}</b></div>)}<h3>Fulfillment</h3>{analytics.fulfillment.map((x) => <div className="stat-row" key={x.name}><span>{x.name === "school_delivery" ? "School delivery" : "Pickup"}</span><b>{x.count}</b></div>)}</article>
-      <article className="panel chart-card wide"><h2>Top drinks</h2><p className="muted">Based on quantity ordered</p>{analytics.drinks.length ? analytics.drinks.map((x) => <div className="drink-bar" key={x.name}><span>{x.name}</span><div><i style={{ width: `${x.quantity / maxDrink * 100}%` }} /></div><b>{x.quantity} · {money(x.revenue)}</b></div>) : <p className="empty">Drink details will appear as new orders are placed.</p>}</article>
-    </section>
+      {tab==="prices" && <><div className="section-head"><div><p className="eyebrow">PRICING CENTER</p><h2>Manage prices</h2><span>Change a price here and it updates the customer menu.</span></div></div>{grouped.map(g=><section className="panel price-panel" key={g.category.id}><h3>{g.category.name}</h3>{g.items.length?g.items.map(x=><div className="price-row" key={x.id}><div><b>{x.name}</b>{x.description&&<small>{x.description}</small>}</div><label>$<input type="number" min="0" step="0.01" value={x.price} onChange={e=>updateItem(x.id,{price:Number(e.target.value)})}/></label><button className="red" onClick={()=>saveItem(x)} disabled={saving}>Save</button></div>):<p className="muted">No items in this category yet.</p>}</section>)}<section className="panel reference"><h3>Current pricing sheet reference</h3><p className="muted">This is the pricing from the photo you sent. Use it as the starting point while setting up the live menu.</p><div className="reference-grid">{photoPricing.map(([title,rows])=><div key={title}><b>{title}</b>{rows.map(r=><span key={r}>{r}</span>)}</div>)}</div></section></>}
 
-    <section className="panel recent"><div className="section-title"><h2>Recent orders</h2><span>{filteredOrders.length} shown</span></div>{filteredOrders.slice(0, 8).map((o) => <div className="recent-row" key={o.id}><div><b>{new Date(o.created_at).toLocaleString()}</b><small>{o.fulfillment === "school_delivery" ? "School delivery" : "Pickup"}</small></div><span className={`status ${o.status}`}>{o.status}</span><strong>{money(o.total)}</strong></div>)}{!filteredOrders.length && <p className="empty">No orders in this period.</p>}</section>
+      {tab==="addons" && <><div className="section-head"><div><p className="eyebrow">CUSTOMIZATION</p><h2>Add-ins & boosts</h2></div><button className="red" onClick={addAddon}>+ Add add-in</button></div><section className="panel">{addons.map(x=><div className="price-row" key={x.id}><input value={x.name} onChange={e=>updateAddon(x.id,{name:e.target.value})}/><label>$<input type="number" min="0" step="0.01" value={x.price} onChange={e=>updateAddon(x.id,{price:Number(e.target.value)})}/></label><label><input type="checkbox" checked={x.is_available} onChange={e=>updateAddon(x.id,{is_available:e.target.checked})}/> Available</label><button className="red" onClick={()=>saveAddon(x)}>Save</button></div>)}</section></>}
 
-    <section className="panel"><div className="section-title"><div><h2>Menu Manager</h2><p className="muted">Changes update the ordering menu.</p></div><button className="submit-order" onClick={addItem} disabled={saving}>+ Add drink</button></div>{loading ? <p>Loading menu…</p> : items.map((item) => <div className="owner-row" key={item.id}><input value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} placeholder="Drink name" /><input value={item.description || ""} onChange={(e) => updateItem(item.id, { description: e.target.value })} placeholder="Description" /><input type="number" min="0" step="0.01" value={item.price} onChange={(e) => updateItem(item.id, { price: Number(e.target.value) })} /><select value={item.category_id || ""} onChange={(e) => updateItem(item.id, { category_id: e.target.value || null })}><option value="">No category</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><label><input type="checkbox" checked={item.is_available} onChange={(e) => updateItem(item.id, { is_available: e.target.checked })} /> Available</label><button onClick={() => saveItem(item)} disabled={saving}>Save</button><button onClick={() => deleteItem(item.id, item.name)} disabled={saving}>Delete</button></div>)}</section>
-
-    <section className="panel"><div className="section-title"><h2>Boosts / Add-ons</h2><button className="submit-order" onClick={addAddon} disabled={saving}>+ Add boost</button></div>{addons.map((addon) => <div className="owner-row addon-row" key={addon.id}><input value={addon.name} onChange={(e) => updateAddon(addon.id, { name: e.target.value })} /><input type="number" min="0" step="0.01" value={addon.price} onChange={(e) => updateAddon(addon.id, { price: Number(e.target.value) })} /><span>{money(addon.price)}</span><label><input type="checkbox" checked={addon.is_available} onChange={(e) => updateAddon(addon.id, { is_available: e.target.checked })} /> Available</label><button onClick={() => saveAddon(addon)} disabled={saving}>Save</button><button onClick={() => deleteAddon(addon.id, addon.name)} disabled={saving}>Delete</button></div>)}</section>
-    <section className="panel"><div className="section-title"><h2>Categories</h2><button onClick={addCategory}>+ Add category</button></div><p>{categories.map((x) => x.name).join(" • ") || "No categories yet."}</p></section>
-
+      {tab==="orders" && <section className="panel"><div className="section-head"><div><p className="eyebrow">ORDER HISTORY</p><h2>Recent orders</h2></div><b>{orders.length} total</b></div>{orders.slice(0,30).map(x=><div className="order-row" key={x.id}><div><b>{new Date(x.created_at).toLocaleString()}</b><small>{x.fulfillment==="school_delivery"?"School delivery":"Pickup"}</small></div><span className={`badge ${x.status}`}>{x.status}</span><strong>{money(x.total)}</strong></div>)}{!orders.length&&<p className="muted">No orders yet.</p>}</section>}
+    </div>
     <style jsx>{`
-      .owner-header,.section-title,.recent-row{display:flex;justify-content:space-between;align-items:center;gap:1rem}.range-tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin:1.25rem 0}.range-tabs button{padding:.6rem 1rem;border:1px solid #ddd;background:white;border-radius:999px}.range-tabs .active{background:#c62828;color:white;border-color:#c62828}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin:1rem 0}.metrics article{background:white;border:1px solid #e5e7eb;border-radius:1rem;padding:1.25rem}.metrics span,.metrics small,.muted,.recent-row small{display:block;color:#64748b}.metrics strong{display:block;font-size:1.8rem;margin:.35rem 0;color:#a3291f}.analytics-grid{display:grid;grid-template-columns:2fr 1fr;gap:1rem;margin-bottom:1rem}.analytics-grid .wide{grid-column:1/-1}.bar-chart{height:240px;display:flex;align-items:end;gap:.8rem;border-bottom:1px solid #ddd;padding:1rem 0}.bar-col{height:100%;flex:1;min-width:42px;display:flex;flex-direction:column;justify-content:end;align-items:center;gap:.3rem}.bar{width:100%;background:linear-gradient(#e53935,#8f1d16);border-radius:.5rem .5rem 0 0}.bar-col small{font-size:.72rem}.bar-col b{font-size:.75rem}.stat-row{display:flex;justify-content:space-between;padding:.65rem 0;border-bottom:1px solid #eee;text-transform:capitalize}.drink-bar{display:grid;grid-template-columns:minmax(100px,1fr) 2fr auto;gap:.75rem;align-items:center;margin:.8rem 0}.drink-bar>div{height:12px;background:#eee;border-radius:999px;overflow:hidden}.drink-bar i{display:block;height:100%;background:#c62828;border-radius:999px}.recent{margin-bottom:1rem}.recent-row{padding:1rem 0;border-top:1px solid #eee}.recent-row strong{color:#a3291f}.status{padding:.3rem .6rem;border-radius:999px;background:#eee;text-transform:capitalize;font-size:.85rem}.status.completed{background:#dcfce7}.status.making{background:#fef3c7}.status.ready{background:#dbeafe}.owner-row{display:grid;grid-template-columns:1.2fr 1.5fr 100px 160px 110px auto auto;gap:.6rem;align-items:center;padding:1rem 0;border-top:1px solid #e5e7eb}.addon-row{grid-template-columns:1.5fr 120px 80px 110px auto auto}.owner-row input:not([type=checkbox]),.owner-row select{width:100%;padding:.7rem;border:1px solid #d1d5db;border-radius:.55rem}.owner-row button,.section-title button,.owner-header>button{padding:.65rem .9rem;border:0;border-radius:.55rem;cursor:pointer}.empty{color:#64748b;padding:1rem 0}@media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}.analytics-grid{grid-template-columns:1fr}.analytics-grid .wide{grid-column:auto}.owner-row,.addon-row{grid-template-columns:1fr 1fr}.recent-row{align-items:flex-start}.owner-header{align-items:flex-start;flex-direction:column}}@media(max-width:560px){.metrics{grid-template-columns:1fr}.drink-bar{grid-template-columns:1fr}.bar-chart{overflow-x:auto}.bar-col{min-width:60px}}
+      .owner-shell{min-height:100vh;background:#f3f5f8;color:#202735;padding-bottom:48px}.owner-hero{background:#0d1017;color:#fff;min-height:150px;padding:22px max(24px,6vw);display:flex;align-items:center;gap:28px;border-bottom:5px solid #cf2927}.owner-hero img{width:230px;max-width:28vw;height:auto}.owner-hero div{flex:1}.owner-hero p,.eyebrow{margin:0 0 6px;color:#d6352e;font-weight:900;letter-spacing:2px}.owner-hero h1{font-style:italic;letter-spacing:1px;margin:0 0 8px;font-size:clamp(28px,4vw,52px)}.owner-hero span{color:#cbd0d8}.owner-hero button,.section-head button,.menu-edit button,.price-row button{border:0;border-radius:9px;padding:10px 15px;font-weight:800;cursor:pointer}.owner-tabs{max-width:1180px;margin:20px auto 0;padding:0 24px;display:flex;gap:9px;flex-wrap:wrap}.owner-tabs button{background:#fff;border:1px solid #dde2e8;padding:12px 16px;border-radius:11px;font-weight:800;color:#465062;cursor:pointer}.owner-tabs button.active{background:#20242c;color:#fff;border-color:#20242c;box-shadow:0 7px 18px #20242c30}.owner-tabs span{margin-right:7px}.owner-content{max-width:1180px;margin:20px auto;padding:0 24px}.notice{padding:12px 15px;border-radius:10px;margin-bottom:14px}.success{background:#e5f5e9;color:#24683b}.error{background:#fee9e8;color:#a52622}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:18px}.cards article,.panel{background:#fff;border:1px solid #e1e5eb;border-radius:16px;padding:20px;box-shadow:0 7px 20px #1d27310c}.cards strong{display:block;font-size:30px;color:#a82923;margin-top:7px}.cards small,.muted,.panel span{color:#758093}.rank,.order-row{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #edf0f3}.section-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin:26px 0 15px}.section-head h2{margin:0 0 6px;font-size:29px}.section-head span{color:#687487}.section-head button{margin-left:8px}.red{background:#cf2927!important;color:white}.danger{background:#fee5e3;color:#9c2721}.menu-edit{display:grid;grid-template-columns:2fr 1.2fr auto auto auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid #edf0f3}.menu-edit input,.menu-edit select,.price-row input{border:1px solid #d9dee5;border-radius:8px;padding:10px;font:inherit;min-width:0}.price-panel{margin-bottom:14px}.price-panel h3{margin-top:0;color:#a82923;letter-spacing:.5px}.price-row{display:grid;grid-template-columns:1fr 160px 90px;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #edf0f3}.price-row small{display:block;color:#7c8796;margin-top:3px}.price-row label{display:flex;align-items:center;gap:4px;font-weight:800}.price-row label input[type=number]{width:100%}.reference{margin-top:20px}.reference-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.reference-grid>div{background:#f7f8fa;border-radius:10px;padding:14px}.reference-grid b,.reference-grid span{display:block}.reference-grid b{color:#a82923;margin-bottom:8px}.reference-grid span{font-size:14px;padding:3px 0}.badge{padding:5px 10px;border-radius:999px;background:#edf0f4;text-transform:capitalize;font-weight:800}.badge.new{background:#fce7e7;color:#b42318}.badge.making{background:#fff1d6;color:#a35f00}.badge.ready{background:#e7f3ff;color:#2563a8}.badge.completed{background:#e5f5e9;color:#277143}.order-row small{display:block;margin-top:4px}@media(max-width:800px){.owner-hero{padding:18px 20px;flex-wrap:wrap}.owner-hero img{width:150px;max-width:42vw}.cards{grid-template-columns:repeat(2,1fr)}.menu-edit,.price-row{grid-template-columns:1fr}.section-head{align-items:start;flex-direction:column}.owner-content,.owner-tabs{padding-left:14px;padding-right:14px}}
     `}</style>
   </main>;
 }
