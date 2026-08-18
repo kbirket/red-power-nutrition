@@ -31,3 +31,6 @@
 5. Add loyalty transactions.
 6. Build analytics queries and charts.
 7. Plug in online payment later.
+
+## Deployment
+A harmless documentation update can be used to trigger a fresh deployment when needed.
