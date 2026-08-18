@@ -231,18 +231,23 @@ export default function OrderPage() {
 
       if (orderError) throw orderError;
 
-      const orderItems = cart.map((item) => ({
-        order_id: order.id,
-        menu_item_id:
-          item.id.startsWith("tea-") ||
-          item.id.startsWith("shake-")
-            ? null
-            : item.id,
-        name: item.name,
-        price: item.price,
-        quantity: 1,
-        addons: item.addons,
-      }));
+ const orderItems = cart.map((item) => ({
+  order_id: order.id,
+  menu_item_id:
+    item.id.startsWith("tea-") ||
+    item.id.startsWith("shake-")
+      ? null
+      : item.id,
+  item_name: item.name,
+  price:
+    item.price +
+    item.addons.reduce(
+      (sum, addon) => sum + addon.price,
+      0
+    ),
+  quantity: 1,
+  addons: item.addons,
+}));
 
       const { error: itemsError } = await s
         .from("order_items")
