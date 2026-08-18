@@ -214,7 +214,7 @@ export default function OrderPage() {
         .insert({
           customer_name: name.trim(),
           phone: phone.trim() || null,
-          fulfillment_type: fulfillment,
+          fulfillment: fulfillment,
           teacher_or_location:
             fulfillment === "school_delivery"
               ? teacher.trim()
