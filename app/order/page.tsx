@@ -239,12 +239,12 @@ export default function OrderPage() {
       ? null
       : item.id,
   item_name: item.name,
-  price:
-    item.price +
-    item.addons.reduce(
-      (sum, addon) => sum + addon.price,
-      0
-    ),
+  unit_price:
+  item.price +
+  item.addons.reduce(
+    (sum, addon) => sum + addon.price,
+    0
+  ),
   quantity: 1,
   addons: item.addons,
 }));
