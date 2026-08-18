@@ -12,6 +12,7 @@ type Addon = {
 type OrderItem = {
   name: string;
   price: number;
+  quantity?: number;
   addons?: Addon[];
 };
 
@@ -40,14 +41,32 @@ export default function StaffPage() {
 
     const { data, error } = await supabase
       .from("orders")
-      .select("*")
+      .select(`
+        *,
+        order_items (
+          item_name,
+          unit_price,
+          quantity,
+          addons
+        )
+      `)
       .order("created_at", { ascending: true });
 
     if (error) {
       console.error(error);
       setMessage("Could not load orders.");
     } else {
-      setOrders((data as Order[]) || []);
+      const formattedOrders: Order[] = (data || []).map((order: any) => ({
+        ...order,
+        items: (order.order_items || []).map((item: any) => ({
+          name: item.item_name,
+          price: Number(item.unit_price || 0),
+          quantity: Number(item.quantity || 1),
+          addons: Array.isArray(item.addons) ? item.addons : [],
+        })),
+      }));
+
+      setOrders(formattedOrders);
       setMessage("");
     }
 
@@ -100,8 +119,7 @@ export default function StaffPage() {
 
   const completedOrders = orders.filter(
     (order) =>
-      order.status === "completed" ||
-      order.status === "complete"
+      order.status === "completed" || order.status === "complete"
   );
 
   return (
@@ -252,7 +270,7 @@ function OrderCard({
           0
         ) || 0;
 
-      return sum + Number(item.price || 0) + addonTotal;
+      return sum + Number(item.price || 0) * Number(item.quantity || 1) + addonTotal;
     }, 0) ??
     0;
 
@@ -304,7 +322,10 @@ function OrderCard({
         {order.items && order.items.length > 0 ? (
           order.items.map((item, index) => (
             <div className="staff-order-item" key={index}>
-              <strong>{item.name}</strong>
+              <strong>
+                {item.quantity && item.quantity > 1 ? `${item.quantity}× ` : ""}
+                {item.name}
+              </strong>
 
               <span>${Number(item.price || 0).toFixed(2)}</span>
 
