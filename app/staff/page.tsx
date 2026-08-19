@@ -5,7 +5,7 @@ import { createClient } from "../../lib/supabase/client";
 import "./staff.css";
 
 type Addon = { name: string; price?: number };
-type OrderItem = { name: string; price: number; quantity?: number; addons?: Addon[] };
+type OrderItem = { name: string; price: number; quantity?: number; addons?: Addon[]; category?: string | null };
 type Order = {
   id: string;
   customer_name: string;
@@ -35,7 +35,10 @@ export default function StaffPage() {
           item_name,
           unit_price,
           quantity,
-          addons
+          addons,
+          menu_items (
+            menu_categories ( name )
+          )
         )
       `)
       .order("created_at", { ascending: true });
@@ -51,6 +54,7 @@ export default function StaffPage() {
           price: Number(item.unit_price || 0),
           quantity: Number(item.quantity || 1),
           addons: Array.isArray(item.addons) ? item.addons : [],
+          category: item.menu_items?.menu_categories?.name || null,
         })),
       }));
       setOrders(formattedOrders);
@@ -152,7 +156,7 @@ function OrderCard({ order, buttonText, buttonClass, onAction }: { order: Order;
       <h4>Order</h4>
       {order.items && order.items.length > 0 ? order.items.map((item, index) => (
         <div className="staff-order-item" key={index}>
-          <strong>{item.quantity && item.quantity > 1 ? `${item.quantity}× ` : ""}{item.name}</strong>
+          <strong>{item.quantity && item.quantity > 1 ? `${item.quantity}× ` : ""}{item.category ? `${item.category.replace("Loaded ", "").replace(/s$/, "")} · ` : ""}{item.name}</strong>
           <span>${Number(item.price || 0).toFixed(2)}</span>
           {item.addons && item.addons.length > 0 && <small>+ {item.addons.map((addon) => addon.name).join(", ")}</small>}
         </div>
