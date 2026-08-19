@@ -92,33 +92,43 @@ export async function POST(request: Request) {
         fee: 0,
         total: subtotal,
       })
-      .select()
+      .select("id")
       .single();
 
-    if (orderError) {
+    if (orderError || !order) {
       console.error("Supabase order error:", orderError);
       return NextResponse.json(
-        { error: orderError.message },
+        { error: orderError?.message || "Unable to create the order." },
         { status: 500 }
       );
     }
 
     const orderItems = items.map((item: any) => ({
-      ...item,
       order_id: order.id,
+      menu_item_id: item.menu_item_id,
+      item_name: item.item_name,
+      unit_price: item.unit_price,
+      quantity: item.quantity,
+      addons: item.addons,
     }));
 
-    const { error: itemsError } = await supabase
+    const { data: savedItems, error: itemsError } = await supabase
       .from("order_items")
-      .insert(orderItems);
+      .insert(orderItems)
+      .select("id,order_id,item_name,unit_price,quantity,addons");
 
-    if (itemsError) {
+    if (itemsError || !savedItems || savedItems.length !== orderItems.length) {
       console.error("Supabase order items error:", itemsError);
+      console.error("Expected order items:", orderItems.length, "Saved:", savedItems?.length || 0);
 
       await supabase.from("orders").delete().eq("id", order.id);
 
       return NextResponse.json(
-        { error: itemsError.message },
+        {
+          error:
+            itemsError?.message ||
+            "The order details could not be saved. Please try again.",
+        },
         { status: 500 }
       );
     }
@@ -126,6 +136,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       orderId: order.id,
+      itemCount: savedItems.length,
     });
   } catch (error) {
     console.error("Order API error:", error);
